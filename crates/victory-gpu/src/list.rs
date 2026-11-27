@@ -243,9 +243,12 @@ const IDLE_MOST: (usize, u64) = (512, 256 << 20);
 
 /// The most host lists kept idle (`VICTORY_IDLE_LISTS`, at most
 /// [`IDLE_MOST`]'s 512, the default). Each idle list holds a command
-/// allocator; AMD's driver removes the device at about 2,048 live ones, and
-/// on RDNA 2 cards (issues #329, #376) 64 kept it below that with the relay
-/// on (`scripts\play.ps1 -Rdna2`).
+/// allocator; AMD's driver removes the device at about 2,048 live ones
+/// (issues #329, #376). Too few, though, and the lists the relay lands in a
+/// burst are let go and made anew: with 64 kept on an RX 6750 XT that was
+/// about half of each frame's critical chain (`VICTORY_TIMELINE`), and 256
+/// took a busy scene from about 9 to about 18 fps with no list made a frame
+/// (`scripts\play.ps1 -Rdna2`).
 #[cfg(windows)]
 fn idle_most() -> usize {
     static MOST: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
@@ -256,9 +259,10 @@ fn idle_most() -> usize {
 
 /// The most host lists alive before lists that have run are let go instead
 /// of kept, and the idle ones with them (`VICTORY_LIST_CEILING`; unset: no
-/// ceiling, as before). With the -Rdna2 limits about 1,210 are alive in play
-/// on an RX 6750 XT; 900 was below that and made the layer let go and remake
-/// about 200 lists a frame (3 fps), 1,300 held.
+/// ceiling, as before). About 1,210 are alive in play
+/// on an RX 6750 XT with 64 kept idle, about 1,260 with 256; 900 was below
+/// that and made the layer let go and remake about 200 lists a frame (3 fps).
+/// -Rdna2 sets 1,600.
 #[cfg(windows)]
 fn list_ceiling() -> Option<u64> {
     static MOST: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
