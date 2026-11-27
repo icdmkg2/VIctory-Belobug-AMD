@@ -605,6 +605,12 @@ unsafe impl Send for Own {}
 /// Those that have landed: closed, their steps dropped.
 static POOL: Mutex<Vec<Own>> = Mutex::new(Vec::new());
 
+/// The most landed lists kept in [`POOL`] (`VICTORY_CARD_STEPS_POOL`).
+fn pool_most() -> Option<usize> {
+    static MOST: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    *MOST.get_or_init(|| std::env::var("VICTORY_CARD_STEPS_POOL").ok().and_then(|v| v.trim().parse().ok()))
+}
+
 /// Since the last frame-rate line: fills and copies done on the card, their
 /// bytes, and submissions that waited instead, refused by a check.
 static DONE: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
@@ -642,7 +648,12 @@ impl Taken {
         // The host copies its steps held go; its commands stay until the
         // next use resets it.
         drop(std::mem::take(&mut *self.own.list.deferred()));
-        POOL.lock().unwrap_or_else(|e| e.into_inner()).push(self.own);
+        // Each kept one holds a command allocator (`VICTORY_CARD_STEPS_POOL`,
+        // unset: no bound, as before; issues #329, #376).
+        let mut pool = POOL.lock().unwrap_or_else(|e| e.into_inner());
+        if pool_most().is_none_or(|most| pool.len() < most) {
+            pool.push(self.own);
+        }
     }
 }
 
